@@ -3,108 +3,134 @@ import threading
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 
-recording = True  # Flag global para controlar la grabación
-audio_container = []  # Contenedor global para el audio grabado
-recognizer = sr.Recognizer()
+class VoiceTranscriptionApp:
+    def __init__(self, root):
+        """Inicializa la aplicación de transcripción de voz a texto."""
+        self.root = root
+        self.root.title("Transcripción de Voz a Texto")
+        self.root.configure(bg="#333")  # Fondo oscuro
+        self.root.attributes("-topmost", True)  # Mantener siempre arriba
 
-def listen_for_audio(recognizer, source, audio_container):
-    """Escucha el audio mientras la grabación esté activa."""
-    global recording
-    text_area.insert(tk.END, "Di algo, para escribirlo! (Presiona ENTER para detener)\n")
+        self.recording = False
+        self.audio_container = []
+        self.recognizer = sr.Recognizer()
 
-    while recording:
-        try:
-            audio = recognizer.listen(source, timeout=2)  # Captura audio con un pequeño timeout
-            if audio:  
-                audio_container.append(audio)
-        except sr.WaitTimeoutError:
-            continue
+        self.configure_styles()
+        self.create_widgets()
+        self.center_window(700, 450)
 
-def stop_recording():
-    """Detiene la grabación cuando el usuario presiona el botón de detener."""
-    global recording
-    recording = False  # Cambia el flag para detener el bucle en `listen_for_audio`
+    def configure_styles(self):
+        """Configura los estilos para los botones y la barra de desplazamiento."""
+        style = ttk.Style()
+        style.configure("TButton", font=("Arial", 12, "bold"), padding=5)
+        style.map("TButton",
+                  background=[("active", "darkgreen"), ("!disabled", "green")],
+                  foreground=[("active", "white"), ("!disabled", "white")])
 
-def start_recording():
-    global recording, audio_container
-    recording = True
-    audio_container = []
+        style.map("Red.TButton",
+                  background=[("active", "darkred"), ("!disabled", "red")],
+                  foreground=[("active", "white"), ("!disabled", "white")])
 
-    with sr.Microphone() as source:
-        text_area.insert(tk.END, "Ajustando el ruido de fondo, por favor espera...\n")
-        recognizer.adjust_for_ambient_noise(source, duration=1)
-        text_area.insert(tk.END, "Listo! Puedes hablar.\n")
+        style.configure("Dark.Vertical.TScrollbar",
+                        troughcolor="#333",
+                        background="#333",
+                        arrowcolor="#333",
+                        borderwidth=0)
 
-        audio_thread = threading.Thread(target=listen_for_audio, args=(recognizer, source, audio_container))
-        audio_thread.start()
+    def create_widgets(self):
+        """Crea los elementos de la interfaz gráfica."""
+        frame = tk.Frame(self.root, bg="#333")
+        frame.pack(pady=10, padx=10)
 
-        stop_button.wait_variable(stop_var)
-        stop_recording()
-        audio_thread.join()
+        # Botones
+        button_frame = tk.Frame(frame, bg="#333")
+        button_frame.pack(pady=5)
 
-        if audio_container:
-            text_area.insert(tk.END, "Procesando el audio...\n")
+        self.start_button = ttk.Button(button_frame, text="Iniciar Grabación", command=self.start_recording, style="TButton")
+        self.start_button.pack(pady=5)
+
+        self.stop_var = tk.IntVar()
+        self.stop_button = ttk.Button(button_frame, text="Detener Grabación", command=lambda: self.stop_var.set(1), style="Red.TButton")
+        self.stop_button.pack(pady=5)
+
+        # Área de texto
+        text_frame = tk.Frame(self.root, bg="#333")
+        text_frame.pack(expand=True, fill=tk.BOTH, pady=0, padx=0)
+
+        self.scrollbar = ttk.Scrollbar(text_frame, style="Dark.Vertical.TScrollbar")
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        self.text_area = scrolledtext.ScrolledText(text_frame, wrap=tk.WORD, width=60, height=15,
+                                                   bg="white", fg="black", font=("Arial", 11),
+                                                   borderwidth=0, highlightthickness=0,
+                                                   yscrollcommand=self.scrollbar.set)
+        self.text_area.pack(expand=True, fill=tk.BOTH)
+        self.scrollbar.config(command=self.text_area.yview)
+
+    def center_window(self, width, height):
+        """Centra la ventana en la pantalla."""
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        position_x = (screen_width - width) // 2
+        position_y = (screen_height - height) // 2
+        self.root.geometry(f"{width}x{height}+{position_x}+{position_y}")
+
+    def listen_for_audio(self, recognizer, source):
+        """Escucha el audio mientras la grabación esté activa."""
+        self.text_area.insert(tk.END, "Di algo para escribirlo! (Presiona ENTER para detener)\n")
+
+        while self.recording:
+            try:
+                audio = recognizer.listen(source, timeout=2)
+                if audio:
+                    self.audio_container.append(audio)
+            except sr.WaitTimeoutError:
+                continue
+
+    def stop_recording(self):
+        """Detiene la grabación cuando el usuario presiona el botón de detener."""
+        self.recording = False
+
+    def start_recording(self):
+        """Inicia la grabación de audio y lo procesa."""
+        self.recording = True
+        self.audio_container = []
+
+        with sr.Microphone() as source:
+            self.text_area.insert(tk.END, "Ajustando el ruido de fondo, por favor espera...\n")
+            self.recognizer.adjust_for_ambient_noise(source, duration=1)
+            self.text_area.insert(tk.END, "Listo! Puedes hablar.\n")
+
+            audio_thread = threading.Thread(target=self.listen_for_audio, args=(self.recognizer, source))
+            audio_thread.start()
+
+            self.stop_button.wait_variable(self.stop_var)
+            self.stop_recording()
+            audio_thread.join()
+
+            self.process_audio()
+
+    def process_audio(self):
+        """Procesa el audio grabado y transcribe el texto."""
+        if self.audio_container:
+            self.text_area.insert(tk.END, "Procesando el audio...\n")
             combined_audio = sr.AudioData(
-                b"".join(a.frame_data for a in audio_container),
-                audio_container[0].sample_rate,
-                audio_container[0].sample_width
+                b"".join(a.frame_data for a in self.audio_container),
+                self.audio_container[0].sample_rate,
+                self.audio_container[0].sample_width
             )
 
             try:
-                text = recognizer.recognize_google(combined_audio, language='es-ES')
-                text_area.insert(tk.END, f"Has dicho: {text}\n")
+                text = self.recognizer.recognize_google(combined_audio, language='es-ES')
+                self.text_area.insert(tk.END, f"Has dicho: {text}\n")
             except sr.RequestError as e:
-                text_area.insert(tk.END, f"No se pudo solicitar resultados de Google Speech Recognition; {e}\n")
+                self.text_area.insert(tk.END, f"No se pudo solicitar resultados de Google Speech Recognition; {e}\n")
             except sr.UnknownValueError:
-                text_area.insert(tk.END, "Google Speech Recognition no pudo entender el audio\n")
+                self.text_area.insert(tk.END, "Google Speech Recognition no pudo entender el audio\n")
         else:
-            text_area.insert(tk.END, "No se detectó ningún audio.\n")
+            self.text_area.insert(tk.END, "No se detectó ningún audio.\n")
 
-def on_start_button_click():
-    start_recording()
-
-def on_stop_button_click():
-    stop_var.set(1)
-
-# Crear la interfaz gráfica mejorada
-root = tk.Tk()
-root.title("Transcripción de Voz a Texto")
-root.configure(bg="#333")  # Fondo oscuro
-
-# Forzar colores de botones en macOS
-root.option_add("*Button.highlightBackground", "#333")
-root.option_add("*Button.highlightColor", "#333")
-
-frame = tk.Frame(root, bg="#333")
-frame.pack(pady=10, padx=10)
-
-# Estilos para `ttk.Button`
-style = ttk.Style()
-style.configure("TButton", font=("Arial", 12, "bold"), padding=5)
-style.map("TButton",
-          background=[("active", "darkgreen"), ("!disabled", "green")],
-          foreground=[("active", "white"), ("!disabled", "white")])
-
-style.map("Red.TButton",
-          background=[("active", "darkred"), ("!disabled", "red")],
-          foreground=[("active", "white"), ("!disabled", "white")])
-
-# Contenedor de botones
-button_frame = tk.Frame(frame, bg="#333")
-button_frame.pack(pady=5)
-
-# Botón de inicio con `ttk.Button`
-start_button = ttk.Button(button_frame, text="Iniciar Grabación", command=on_start_button_click, style="TButton")
-start_button.pack(pady=5)
-
-# Botón de detener con `ttk.Button`
-stop_var = tk.IntVar()
-stop_button = ttk.Button(button_frame, text="Detener Grabación", command=on_stop_button_click, style="Red.TButton")
-stop_button.pack(pady=5)
-
-# Área de texto con colores mejorados
-text_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=60, height=15, bg="white", fg="black", font=("Arial", 11))
-text_area.pack(expand=True, fill=tk.BOTH, pady=10, padx=10)
-
-root.geometry("700x450")
-root.mainloop()
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = VoiceTranscriptionApp(root)
+    root.mainloop()
