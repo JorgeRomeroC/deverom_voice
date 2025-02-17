@@ -1,7 +1,9 @@
+import os
 import speech_recognition as sr
 import threading
 import tkinter as tk
 from tkinter import ttk, scrolledtext
+from PIL import Image, ImageTk  # Para manejar imágenes
 
 class VoiceTranscriptionApp:
     def __init__(self, root):
@@ -17,12 +19,12 @@ class VoiceTranscriptionApp:
 
         self.configure_styles()
         self.create_widgets()
-        self.center_window(700, 450)
+        self.center_window(700, 550)  # Aumentamos la altura para acomodar los botones más grandes
 
     def configure_styles(self):
-        """Configura los estilos para los botones y la barra de desplazamiento."""
+        """Configura los estilos de la interfaz."""
         style = ttk.Style()
-        style.configure("TButton", font=("Arial", 12, "bold"), padding=5)
+        style.configure("TButton", font=("Arial", 14, "bold"), padding=12)  # Más padding para más altura
         style.map("TButton",
                   background=[("active", "darkgreen"), ("!disabled", "green")],
                   foreground=[("active", "white"), ("!disabled", "white")])
@@ -31,38 +33,59 @@ class VoiceTranscriptionApp:
                   background=[("active", "darkred"), ("!disabled", "red")],
                   foreground=[("active", "white"), ("!disabled", "white")])
 
-        style.configure("Dark.Vertical.TScrollbar",
-                        troughcolor="#333",
-                        background="#333",
-                        arrowcolor="#333",
-                        borderwidth=0)
-
     def create_widgets(self):
         """Crea los elementos de la interfaz gráfica."""
-        frame = tk.Frame(self.root, bg="#333")
-        frame.pack(pady=10, padx=10)
 
-        # Contenedor de botones
+        # **Frame para el logo y el texto "Deverom"**
+        top_frame = tk.Frame(self.root, bg="#333")
+        top_frame.pack(fill=tk.X, padx=10, pady=5, anchor="w")
+
+        # **Cargar la imagen del logo**
+        logo_path = "img/logo_deverom.png"
+        if os.path.exists(logo_path):
+            try:
+                image = Image.open(logo_path)
+                image = image.resize((50, 50), Image.Resampling.LANCZOS)  # Ajuste de tamaño
+                self.logo = ImageTk.PhotoImage(image)
+
+                # **Label para la imagen**
+                self.logo_label = tk.Label(top_frame, image=self.logo, bg="#333")
+                self.logo_label.pack(side=tk.LEFT, padx=10)
+            except Exception as e:
+                print(f"⚠ Error al cargar la imagen: {e}")
+
+        # **Label para el texto "Deverom"**
+        self.brand_label = tk.Label(top_frame, text="Deverom", fg="white", bg="#333",
+                                    font=("Arial", 14, "bold"))
+        self.brand_label.pack(side=tk.LEFT, anchor="w")
+
+        # **Frame para los botones**
+        frame = tk.Frame(self.root, bg="#333")
+        frame.pack(pady=15, padx=10)
+
+        # **Contenedor de botones**
         button_frame = tk.Frame(frame, bg="#333")
         button_frame.pack(pady=5)
 
-        self.start_button = ttk.Button(button_frame, text="Iniciar Grabación", command=self.start_recording, style="TButton")
-        self.start_button.pack(pady=5)
+        # **Botón de iniciar grabación con ícono 🎤**
+        self.start_button = ttk.Button(button_frame, text=" 🎤 Iniciar Grabación", command=self.start_recording, style="TButton")
+        self.start_button.pack(pady=5, ipadx=15, ipady=10)  # ipadx/ipady ajusta el tamaño interno del botón
 
+        # **Botón de detener grabación con ícono ⏹**
         self.stop_var = tk.IntVar()
-        self.stop_button = ttk.Button(button_frame, text="Detener Grabación", command=self.stop_recording, style="Red.TButton")
-        self.stop_button.pack(pady=5)
+        self.stop_button = ttk.Button(button_frame, text=" ⏹ Detener Grabación", command=self.stop_recording, style="Red.TButton")
+        self.stop_button.pack(pady=5, ipadx=15, ipady=10)
 
         # **Mensaje de ayuda**
         self.help_label = tk.Label(frame, text="Habla con claridad y a un ritmo moderado para mejorar la precisión de la transcripción.",
                                    fg="white", bg="#333", font=("Arial", 13, "italic"))
         self.help_label.pack(pady=5)
 
-        # Área de texto
+        # **Área de texto**
         text_frame = tk.Frame(self.root, bg="#333")
         text_frame.pack(expand=True, fill=tk.BOTH, pady=0, padx=0)
 
-        self.scrollbar = ttk.Scrollbar(text_frame, style="Dark.Vertical.TScrollbar")
+        self.scrollbar = ttk.Scrollbar(text_frame)
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.text_area = scrolledtext.ScrolledText(text_frame, wrap=tk.WORD, width=60, height=15,
