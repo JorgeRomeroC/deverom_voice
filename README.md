@@ -73,7 +73,7 @@ Este script usa las siguientes librerías de Python:
 
 Clona este repositorio en tu máquina local:
 ```bash
-  git clone <URL_DEL_REPOSITORIO>
+  git clone https://github.com/JorgeRomeroC/deverom_voice.git
 ```
 
 
