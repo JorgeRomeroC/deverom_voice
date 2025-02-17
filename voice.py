@@ -76,12 +76,15 @@ class VoiceTranscriptionApp:
         self.root.geometry(f"{width}x{height}+{position_x}+{position_y}")
 
     def listen_for_audio(self, recognizer, source):
-        """Escucha el audio mientras la grabación esté activa."""
+        """Escucha el audio sin cortar la grabación hasta que el usuario lo detenga."""
         self.text_area.insert(tk.END, "Di algo para escribirlo! (Presiona ENTER para detener)\n")
+        recognizer.energy_threshold = 100  # Ajusta la sensibilidad del micrófono
+        recognizer.dynamic_energy_threshold = True  # Permite ajuste dinámico
 
         while self.recording:
             try:
-                audio = recognizer.listen(source, timeout=2)
+                # Captura sin límite de tiempo y sin interrupciones
+                audio = recognizer.listen(source, phrase_time_limit=None)  
                 if audio:
                     self.audio_container.append(audio)
             except sr.WaitTimeoutError:
@@ -92,13 +95,13 @@ class VoiceTranscriptionApp:
         self.recording = False
 
     def start_recording(self):
-        """Inicia la grabación de audio y lo procesa."""
+        """Inicia la grabación de audio con mejor calidad y procesamiento."""
         self.recording = True
         self.audio_container = []
 
         with sr.Microphone() as source:
             self.text_area.insert(tk.END, "Ajustando el ruido de fondo, por favor espera...\n")
-            self.recognizer.adjust_for_ambient_noise(source, duration=1)
+            self.recognizer.adjust_for_ambient_noise(source, duration=2)  # Ajuste de ruido mejorado
             self.text_area.insert(tk.END, "Listo! Puedes hablar.\n")
 
             audio_thread = threading.Thread(target=self.listen_for_audio, args=(self.recognizer, source))
@@ -114,6 +117,8 @@ class VoiceTranscriptionApp:
         """Procesa el audio grabado y transcribe el texto."""
         if self.audio_container:
             self.text_area.insert(tk.END, "Procesando el audio...\n")
+            
+            # Concatenar todos los fragmentos de audio en uno solo
             combined_audio = sr.AudioData(
                 b"".join(a.frame_data for a in self.audio_container),
                 self.audio_container[0].sample_rate,
