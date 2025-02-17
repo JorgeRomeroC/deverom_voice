@@ -29,7 +29,7 @@ Este programa en **Python** captura audio en tiempo real desde el micrófono y l
 
 ## 🖥️ **Interfaz del Programa**
 <p align="center">
-  <img src="img/interfaz.png" alt="Interfaz del Programa" width="700">
+  <img src="img/Interfaz.png" alt="Interfaz del Programa" width="700">
 </p>
 
 La interfaz cuenta con:
