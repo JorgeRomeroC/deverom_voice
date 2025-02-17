@@ -42,7 +42,7 @@ class VoiceTranscriptionApp:
         frame = tk.Frame(self.root, bg="#333")
         frame.pack(pady=10, padx=10)
 
-        # Botones
+        # Contenedor de botones
         button_frame = tk.Frame(frame, bg="#333")
         button_frame.pack(pady=5)
 
@@ -50,8 +50,13 @@ class VoiceTranscriptionApp:
         self.start_button.pack(pady=5)
 
         self.stop_var = tk.IntVar()
-        self.stop_button = ttk.Button(button_frame, text="Detener Grabación", command=lambda: self.stop_var.set(1), style="Red.TButton")
+        self.stop_button = ttk.Button(button_frame, text="Detener Grabación", command=self.stop_recording, style="Red.TButton")
         self.stop_button.pack(pady=5)
+
+        # **Mensaje de ayuda**
+        self.help_label = tk.Label(frame, text="Habla con claridad y a un ritmo moderado para mejorar la precisión de la transcripción.",
+                                   fg="white", bg="#333", font=("Arial", 13, "italic"))
+        self.help_label.pack(pady=5)
 
         # Área de texto
         text_frame = tk.Frame(self.root, bg="#333")
@@ -75,13 +80,35 @@ class VoiceTranscriptionApp:
         position_y = (screen_height - height) // 2
         self.root.geometry(f"{width}x{height}+{position_x}+{position_y}")
 
+    def start_recording(self):
+        """Inicia la grabación de audio."""
+        self.recording = True
+        self.audio_container = []
+
+        with sr.Microphone() as source:
+            self.text_area.insert(tk.END, "Ajustando el ruido de fondo, por favor espera...\n")
+            self.text_area.update_idletasks()
+            self.recognizer.adjust_for_ambient_noise(source, duration=2)
+            self.text_area.insert(tk.END, "Listo! Puedes hablar.\n")
+            self.text_area.update_idletasks()
+
+            self.audio_thread = threading.Thread(target=self.listen_for_audio, args=(self.recognizer, source))
+            self.audio_thread.start()
+
+    def stop_recording(self):
+        """Detiene la grabación y procesa el audio."""
+        self.recording = False
+        self.audio_thread.join()
+        self.process_audio()
+
     def listen_for_audio(self, recognizer, source):
         """Escucha el audio sin cortar la grabación hasta que el usuario lo detenga."""
         self.text_area.insert(tk.END, "Di algo para escribirlo! (Presiona ENTER para detener)\n")
-        self.text_area.update_idletasks()  # Forzar actualización de la GUI
+        self.text_area.update_idletasks()
 
-        recognizer.energy_threshold = 100  
+        recognizer.energy_threshold = 300
         recognizer.dynamic_energy_threshold = True  
+        recognizer.pause_threshold = 1
 
         while self.recording:
             try:
@@ -91,37 +118,10 @@ class VoiceTranscriptionApp:
             except sr.WaitTimeoutError:
                 continue
 
-    def stop_recording(self):
-        """Detiene la grabación cuando el usuario presiona el botón de detener."""
-        self.recording = False
-
-    def start_recording(self):
-        """Inicia la grabación de audio con mejor calidad y procesamiento."""
-        self.recording = True
-        self.audio_container = []
-
-        with sr.Microphone() as source:
-            self.text_area.insert(tk.END, "Ajustando el ruido de fondo, por favor espera...\n")
-            self.text_area.update_idletasks()  # Asegurar que el mensaje se muestre
-            self.recognizer.adjust_for_ambient_noise(source, duration=2)
-            self.text_area.insert(tk.END, "Listo! Puedes hablar.\n")
-            self.text_area.update_idletasks()
-
-            audio_thread = threading.Thread(target=self.listen_for_audio, args=(self.recognizer, source))
-            audio_thread.start()
-
-            self.stop_button.wait_variable(self.stop_var)
-            self.stop_recording()
-            audio_thread.join()
-
-            # Procesar el audio en un hilo separado para no bloquear la UI
-            process_thread = threading.Thread(target=self.process_audio)
-            process_thread.start()
-
     def process_audio(self):
         """Procesa el audio grabado y transcribe el texto."""
         self.text_area.insert(tk.END, "\nProcesando el audio...\n")
-        self.text_area.update_idletasks()  # Asegurar que el mensaje se muestre antes de procesar
+        self.text_area.update_idletasks()
 
         if self.audio_container:
             combined_audio = sr.AudioData(
