@@ -78,12 +78,13 @@ class VoiceTranscriptionApp:
     def listen_for_audio(self, recognizer, source):
         """Escucha el audio sin cortar la grabación hasta que el usuario lo detenga."""
         self.text_area.insert(tk.END, "Di algo para escribirlo! (Presiona ENTER para detener)\n")
-        recognizer.energy_threshold = 100  # Ajusta la sensibilidad del micrófono
-        recognizer.dynamic_energy_threshold = True  # Permite ajuste dinámico
+        self.text_area.update_idletasks()  # Forzar actualización de la GUI
+
+        recognizer.energy_threshold = 100  
+        recognizer.dynamic_energy_threshold = True  
 
         while self.recording:
             try:
-                # Captura sin límite de tiempo y sin interrupciones
                 audio = recognizer.listen(source, phrase_time_limit=None)  
                 if audio:
                     self.audio_container.append(audio)
@@ -101,8 +102,10 @@ class VoiceTranscriptionApp:
 
         with sr.Microphone() as source:
             self.text_area.insert(tk.END, "Ajustando el ruido de fondo, por favor espera...\n")
-            self.recognizer.adjust_for_ambient_noise(source, duration=2)  # Ajuste de ruido mejorado
+            self.text_area.update_idletasks()  # Asegurar que el mensaje se muestre
+            self.recognizer.adjust_for_ambient_noise(source, duration=2)
             self.text_area.insert(tk.END, "Listo! Puedes hablar.\n")
+            self.text_area.update_idletasks()
 
             audio_thread = threading.Thread(target=self.listen_for_audio, args=(self.recognizer, source))
             audio_thread.start()
@@ -111,14 +114,16 @@ class VoiceTranscriptionApp:
             self.stop_recording()
             audio_thread.join()
 
-            self.process_audio()
+            # Procesar el audio en un hilo separado para no bloquear la UI
+            process_thread = threading.Thread(target=self.process_audio)
+            process_thread.start()
 
     def process_audio(self):
         """Procesa el audio grabado y transcribe el texto."""
+        self.text_area.insert(tk.END, "\nProcesando el audio...\n")
+        self.text_area.update_idletasks()  # Asegurar que el mensaje se muestre antes de procesar
+
         if self.audio_container:
-            self.text_area.insert(tk.END, "Procesando el audio...\n")
-            
-            # Concatenar todos los fragmentos de audio en uno solo
             combined_audio = sr.AudioData(
                 b"".join(a.frame_data for a in self.audio_container),
                 self.audio_container[0].sample_rate,
