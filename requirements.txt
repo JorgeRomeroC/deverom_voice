@@ -1,2 +1,4 @@
+pillow==11.1.0
+PyAudio==0.2.14
 SpeechRecognition==3.14.1
 typing_extensions==4.12.2
