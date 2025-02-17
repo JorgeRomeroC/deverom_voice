@@ -1,7 +1,7 @@
 import speech_recognition as sr
 import threading
 import tkinter as tk
-from tkinter import scrolledtext
+from tkinter import ttk, scrolledtext
 
 recording = True  # Flag global para controlar la grabación
 audio_container = []  # Contenedor global para el audio grabado
@@ -14,15 +14,14 @@ def listen_for_audio(recognizer, source, audio_container):
 
     while recording:
         try:
-            # Capturar audio con un pequeño timeout para poder verificar `recording`
-            audio = recognizer.listen(source, timeout=2)  # Aumentamos el timeout para no cortar frases
-            if audio:  # Solo agregar si se capturó algo
+            audio = recognizer.listen(source, timeout=2)  # Captura audio con un pequeño timeout
+            if audio:  
                 audio_container.append(audio)
         except sr.WaitTimeoutError:
             continue
 
 def stop_recording():
-    """Detiene la grabación cuando el usuario presiona ENTER."""
+    """Detiene la grabación cuando el usuario presiona el botón de detener."""
     global recording
     recording = False  # Cambia el flag para detener el bucle en `listen_for_audio`
 
@@ -33,23 +32,20 @@ def start_recording():
 
     with sr.Microphone() as source:
         text_area.insert(tk.END, "Ajustando el ruido de fondo, por favor espera...\n")
-        recognizer.adjust_for_ambient_noise(source, duration=1)  # Reduce el ruido ambiental
+        recognizer.adjust_for_ambient_noise(source, duration=1)
         text_area.insert(tk.END, "Listo! Puedes hablar.\n")
 
-        # Crear y ejecutar hilos
         audio_thread = threading.Thread(target=listen_for_audio, args=(recognizer, source, audio_container))
         audio_thread.start()
 
-        # Esperar a que el usuario presione el botón de detener
         stop_button.wait_variable(stop_var)
         stop_recording()
-        audio_thread.join()  # Espera a que la grabación finalice
+        audio_thread.join()
 
-        # Procesar el audio grabado si hay contenido
         if audio_container:
             text_area.insert(tk.END, "Procesando el audio...\n")
             combined_audio = sr.AudioData(
-                b"".join(a.frame_data for a in audio_container),  # Concatenar los fragmentos de audio
+                b"".join(a.frame_data for a in audio_container),
                 audio_container[0].sample_rate,
                 audio_container[0].sample_width
             )
@@ -70,18 +66,45 @@ def on_start_button_click():
 def on_stop_button_click():
     stop_var.set(1)
 
-# Crear la interfaz gráfica
+# Crear la interfaz gráfica mejorada
 root = tk.Tk()
 root.title("Transcripción de Voz a Texto")
+root.configure(bg="#333")  # Fondo oscuro
 
-start_button = tk.Button(root, text="Iniciar Grabación", command=on_start_button_click)
-start_button.pack(pady=10)
+# Forzar colores de botones en macOS
+root.option_add("*Button.highlightBackground", "#333")
+root.option_add("*Button.highlightColor", "#333")
 
+frame = tk.Frame(root, bg="#333")
+frame.pack(pady=10, padx=10)
+
+# Estilos para `ttk.Button`
+style = ttk.Style()
+style.configure("TButton", font=("Arial", 12, "bold"), padding=5)
+style.map("TButton",
+          background=[("active", "darkgreen"), ("!disabled", "green")],
+          foreground=[("active", "white"), ("!disabled", "white")])
+
+style.map("Red.TButton",
+          background=[("active", "darkred"), ("!disabled", "red")],
+          foreground=[("active", "white"), ("!disabled", "white")])
+
+# Contenedor de botones
+button_frame = tk.Frame(frame, bg="#333")
+button_frame.pack(pady=5)
+
+# Botón de inicio con `ttk.Button`
+start_button = ttk.Button(button_frame, text="Iniciar Grabación", command=on_start_button_click, style="TButton")
+start_button.pack(pady=5)
+
+# Botón de detener con `ttk.Button`
 stop_var = tk.IntVar()
-stop_button = tk.Button(root, text="Detener Grabación", command=on_stop_button_click)
-stop_button.pack(pady=10)
+stop_button = ttk.Button(button_frame, text="Detener Grabación", command=on_stop_button_click, style="Red.TButton")
+stop_button.pack(pady=5)
 
-text_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=50, height=10)
-text_area.pack(pady=10)
+# Área de texto con colores mejorados
+text_area = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=60, height=15, bg="white", fg="black", font=("Arial", 11))
+text_area.pack(expand=True, fill=tk.BOTH, pady=10, padx=10)
 
+root.geometry("700x450")
 root.mainloop()
