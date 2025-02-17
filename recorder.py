@@ -1,6 +1,7 @@
 import time
 import threading
 import speech_recognition as sr
+from utils import process_audio  # O desde donde esté definida
 
 class AudioRecorder:
     def __init__(self, app):
@@ -19,7 +20,7 @@ class AudioRecorder:
     def stop_recording(self):
         """Detiene la grabación y ejecuta el procesamiento en un hilo separado."""
         self.recording = False
-        threading.Thread(target=self.process_audio, daemon=True).start()
+        threading.Thread(target=lambda: process_audio(self.app, self.audio_container), daemon=True).start()
 
     def listen_for_audio(self):
         """Escucha y almacena fragmentos de audio."""
@@ -29,7 +30,7 @@ class AudioRecorder:
 
             while self.recording:
                 try:
-                    audio = self.recognizer.listen(source, phrase_time_limit=5)
+                    audio = self.recognizer.listen(source, phrase_time_limit=10)
                     if audio:
                         self.audio_container.append(audio)
                 except sr.WaitTimeoutError:
@@ -39,8 +40,13 @@ class AudioRecorder:
         """Procesa y transcribe el audio."""
         self.app.text_area.insert("end", "🔄 Procesando el audio...\n")
         if self.audio_container:
+            combined_audio = sr.AudioData(
+                b"".join(a.frame_data for a in self.audio_container),  # Concatenar los fragmentos de audio
+                self.audio_container[0].sample_rate,
+                self.audio_container[0].sample_width
+            )
             try:
-                text = self.recognizer.recognize_google(self.audio_container[0], language='es-ES')
+                text = self.recognizer.recognize_google(combined_audio, language='es-ES')
                 self.app.text_area.insert("end", f"📝 {text.capitalize()}\n")
             except Exception:
                 self.app.text_area.insert("end", "❌ No se pudo entender el audio.\n")
