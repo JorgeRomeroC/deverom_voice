@@ -22,7 +22,8 @@ class VoiceTranscriptionApp:
 
         self.configure_styles()
         self.create_widgets()
-        self.center_window(700, 580)  # Ajuste para incluir el botón "Copiar Texto"
+        self.center_window(900, 750)  # Ajuste para incluir el botón "Copiar Texto"
+        self.root.resizable(False, False)
 
     def configure_styles(self):
         """Configura los estilos de la interfaz."""
@@ -42,18 +43,22 @@ class VoiceTranscriptionApp:
         top_frame.pack(fill=tk.X, padx=10, pady=5, anchor="w")
 
         # **Cargar la imagen del logo**
-        logo_path = "img/logo-deverom.png"
+        logo_path = "img/logo_deverom.png"
         if os.path.exists(logo_path):
             try:
                 image = Image.open(logo_path)
                 image = image.resize((50, 50), Image.Resampling.LANCZOS)
                 self.logo = ImageTk.PhotoImage(image)
+
+                # **Etiqueta para mostrar el logo**
                 self.logo_label = tk.Label(top_frame, image=self.logo, bg="#333")
                 self.logo_label.pack(side=tk.LEFT, padx=10)
             except Exception as e:
-                print(f"⚠ Error al cargar la imagen: {e}")
+                print(f"⚠ Error al cargar la imagen del logo: {e}")
+        else:
+            print("⚠ No se encontró la imagen del logo en:", logo_path)
 
-        # **Texto "Deverom"**
+        # **Texto "Deverom" junto al logo**
         self.brand_label = tk.Label(top_frame, text="Deverom", fg="white", bg="#333",
                                     font=("Arial", 14, "bold"))
         self.brand_label.pack(side=tk.LEFT, anchor="w")
@@ -66,14 +71,14 @@ class VoiceTranscriptionApp:
         button_frame.pack(pady=5)
 
         self.start_button = ttk.Button(button_frame, text=" 🎤 Iniciar Grabación", command=self.start_recording, style="TButton")
-        self.start_button.pack(pady=8, ipadx=15, ipady=10)
+        self.start_button.pack(pady=5, ipadx=15, ipady=10)
 
         self.stop_var = tk.IntVar()
         self.stop_button = ttk.Button(button_frame, text=" ⏹ Detener Grabación", command=self.stop_recording, style="Red.TButton")
-        self.stop_button.pack(pady=8, ipadx=15, ipady=10)
+        self.stop_button.pack(pady=5, ipadx=15, ipady=10)
 
         self.help_label = tk.Label(frame, text="Habla con claridad y a un ritmo moderado para mejorar la precisión de la transcripción.",
-                                   fg="white", bg="#333", font=("Arial", 11, "italic"))
+                                fg="white", bg="#333", font=("Arial", 13, "italic"))
         self.help_label.pack(pady=5)
 
         # **Área de texto**
@@ -84,15 +89,23 @@ class VoiceTranscriptionApp:
         self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.text_area = scrolledtext.ScrolledText(text_frame, wrap=tk.WORD, width=60, height=15,
-                                                   bg="white", fg="black", font=("Arial", 11),
-                                                   borderwidth=0, highlightthickness=0,
-                                                   yscrollcommand=self.scrollbar.set)
+                                                bg="white", fg="black", font=("Arial", 13),
+                                                borderwidth=0, highlightthickness=0,
+                                                yscrollcommand=self.scrollbar.set)
         self.text_area.pack(expand=True, fill=tk.BOTH)
         self.scrollbar.config(command=self.text_area.yview)
 
+        # **Botones "Copiar Texto" y "Limpiar Texto" en un solo frame**
+        button_container = tk.Frame(self.root, bg="#333")
+        button_container.pack(pady=10)
+
         # **Botón "Copiar Texto"**
-        self.copy_button = ttk.Button(self.root, text="📋 Copiar Texto", command=self.copy_to_clipboard, style="TButton")
-        self.copy_button.pack(pady=10, ipadx=15, ipady=10)
+        self.copy_button = ttk.Button(button_container, text="📋 Copiar Texto", command=self.copy_to_clipboard, style="TButton")
+        self.copy_button.pack(side=tk.LEFT, padx=5, ipadx=15, ipady=10)
+
+        # **Botón "Limpiar Texto"**
+        self.clear_button = ttk.Button(button_container, text="🗑 Limpiar Texto", command=self.clear_text, style="Red.TButton")
+        self.clear_button.pack(side=tk.LEFT, padx=5, ipadx=15, ipady=10)
 
     def center_window(self, width, height):
         """Centra la ventana en la pantalla."""
@@ -101,6 +114,11 @@ class VoiceTranscriptionApp:
         position_x = (screen_width - width) // 2
         position_y = (screen_height - height) // 2
         self.root.geometry(f"{width}x{height}+{position_x}+{position_y}")
+        
+    def clear_text(self):
+        """Limpia todo el texto de la ventana."""
+        self.text_area.delete("1.0", tk.END)  # Borra todo el contenido del área de texto
+        self.transcribed_text = ""  # Resetea el texto transcrito
 
     def copy_to_clipboard(self):
         """Copia **solo** el texto transcrito al portapapeles."""
@@ -147,22 +165,39 @@ class VoiceTranscriptionApp:
                 except sr.WaitTimeoutError:
                     continue
 
+
+    def stop_recording(self):
+        """Detiene la grabación y ejecuta el procesamiento en un hilo separado."""
+        self.recording = False
+        self.audio_thread.join()
+        
+        # **Ejecutar el procesamiento en un hilo separado para no bloquear la UI**
+        threading.Thread(target=self.process_audio, daemon=True).start()
+
     def process_audio(self):
-        """Procesa el audio grabado y transcribe el texto."""
-        self.text_area.insert(tk.END, "\nProcesando el audio...\n")
+        """Procesa todos los fragmentos de audio y transcribe el texto."""
+        self.text_area.insert(tk.END, "\n🔄 Procesando el audio...\n")
         self.text_area.update_idletasks()
 
         if self.audio_container:
-            try:
-                text = self.recognizer.recognize_google(self.audio_container[0], language='es-ES')
-                self.transcribed_text = text  
-                self.text_area.insert(tk.END, f"\n📝 {text}\n")
-            except sr.UnknownValueError:
-                self.text_area.insert(tk.END, "❌ No se pudo entender el audio.\n")
-            except sr.RequestError as e:
-                self.text_area.insert(tk.END, f"⚠ Error en la transcripción: {e}\n")
+            full_text = ""  # Almacenar la transcripción completa
+            for audio_chunk in self.audio_container:  # Iterar sobre todos los fragmentos
+                try:
+                    text = self.recognizer.recognize_google(audio_chunk, language='es-ES')
+                    text = text.capitalize()
+                    full_text += text + " "  # Agregar el texto al resultado completo
+                except sr.UnknownValueError:
+                    full_text += "[No se pudo entender] " # Manejar errores de reconocimiento
+                except sr.RequestError as e:
+                    full_text += f"[Error: {e}] " # Manejar errores de solicitud
+
+            self.transcribed_text = full_text.strip() # Guardar la transcripción completa
+            self.text_area.insert(tk.END, f"\n📝 {self.transcribed_text}\n") # Mostrar la transcripción completa
+
         else:
             self.text_area.insert(tk.END, "⚠ No se detectó ningún audio.\n")
+
+        self.text_area.update_idletasks()
 
 
 if __name__ == "__main__":
